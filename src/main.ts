@@ -1,6 +1,7 @@
 
 import { BootState } from './states/bootState';
 import { GameState } from './states/gameState';
+import { MenuState } from './states/menuState';
 import { PreloadState } from './states/preloadState';
 
 class Main extends Phaser.Game {
@@ -10,6 +11,7 @@ class Main extends Phaser.Game {
 
     this.state.add('boot', BootState);
     this.state.add('preload', PreloadState);
+    this.state.add('menu', MenuState);
     this.state.add('game', GameState);
 
     this.state.start('boot');

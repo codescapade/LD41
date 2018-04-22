@@ -11,7 +11,6 @@ export class GameState extends Phaser.State {
   private _gridWidth:number = 15;
   private _gridHeight:number = 24;
 
-  private _moveDelay:number = 350;
   private _moveTimer:number = 0;
 
   private _fallDelay:number = 30;
@@ -26,7 +25,6 @@ export class GameState extends Phaser.State {
   private _targets:Actor[];
   private _deadSnakes:Snake[];
 
-  private _nrOfTargets:number = 8;
   private _minSnakeLength:number = 2;
   private _maxSnakeLength:number = 5;
 
@@ -37,13 +35,33 @@ export class GameState extends Phaser.State {
 
   private _gameOver:boolean = false;
 
+  private _levelComplete:boolean = false;
+
+  private _gameOverText:Phaser.Sprite;
+  private _levelCompleteText:Phaser.Sprite;
+
+  private _nextColors:MatchColor[];
+  private _nextSnake:Actor[];
+
   public create ():void {
+    this._handelingMatches = false;
+    this._movingSnakes = false;
+    this._gameOver = false;
+    this._levelComplete = false;
+
+    this._nextColors = [];
+    this._nextSnake = [];
+
     Gbl.init(this._gridWidth, this._gridHeight,
       new Phaser.Point(this.game.world.centerX, this.game.world.centerY));
     
     const background:Phaser.Sprite = this.game.add.sprite(
       this.game.world.centerX, this.game.world.centerY, 'grid');
     background.anchor.set(0.5);
+
+    const nextBorder:Phaser.Sprite = this.game.add.sprite(
+      712, 168, 'sprites', 'next_border');
+    nextBorder.anchor.set(0.5);
 
     this.actorGroup = this.add.group();
     for (let i:number = 0; i < 300; i++) {
@@ -56,6 +74,16 @@ export class GameState extends Phaser.State {
       this.game.world.centerX, this.game.world.centerY, 'border');
     border.anchor.set(0.5);
 
+    this._gameOverText = this.game.add.sprite(
+      this.game.world.centerX, this.game.world.centerY, 'sprites', 'game_over');
+    this._gameOverText.anchor.set(0.5);
+    this._gameOverText.visible = false;
+
+    this._levelCompleteText = this.game.add.sprite(
+      this.game.world.centerX, this.game.world.centerY, 'sprites', 'level_complete');
+    this._levelCompleteText.anchor.set(0.5);
+    this._levelCompleteText.visible = false;
+
     this._grid = [];
     for (let y:number = 0; y < this._gridHeight; y++) {
       const row:MatchColor[] = [];
@@ -65,19 +93,34 @@ export class GameState extends Phaser.State {
       this._grid.push(row);
     }
 
+    const textStyle:Phaser.PhaserTextStyle = { font: '28px Arial Black', fill: '#ffffff' };
+    this.game.add.text(16, 70, 'Level: ' + Gbl.currentLevel, textStyle);
+
+    textStyle.font = '24px Arial Black';
+    this.game.add.text(680, 64, 'Next', textStyle);
+
     this._deadSnakes = [];
-    this._setTargets(this._nrOfTargets);
+    
+    this._setTargets(Gbl.currentTargets);
 
     this._newDirection = new Phaser.Point(0, 1);
 
-    this._createSnake();
+    this._setNextColors();
 
+    this._createSnake();
+    this._setNextColors();
   } // create
 
   public update ():void {
     if (this._gameOver) {
       if (this.game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR)) {
-        // load menu here
+        this.state.start('menu');
+      }
+      return;
+    } else if (this._levelComplete) {
+      if (this.game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR)) {
+        Gbl.nextLevel();
+        this.state.start('game');
       }
       return;
     }
@@ -102,7 +145,7 @@ export class GameState extends Phaser.State {
     } else if (this.game.input.keyboard.isDown(Phaser.Keyboard.DOWN)) {
       this._newDirection.set(0, 1);
     }
-    if (this._moveTimer < this._moveDelay) {
+    if (this._moveTimer < Gbl.currentDelay) {
       this._moveTimer += this.game.time.elapsed;
     } else {
       this._moveTimer = 0;
@@ -121,6 +164,7 @@ export class GameState extends Phaser.State {
         for (const part of this._currentSnake.body) {
           if (part.gridPosition.y < 0) {
             this._gameOver = true;
+            this._gameOverText.visible = true;
           }
         }
         this._deadSnakes.push(this._currentSnake);
@@ -137,15 +181,45 @@ export class GameState extends Phaser.State {
 
   } // render
 
+  private _setNextColors ():void {
+    this._nextColors = [];
+    const len:number = this.rnd.between(this._minSnakeLength, this._maxSnakeLength);
+    for (let i:number = 0; i < len; i++) {
+      this._nextColors.push(this.rnd.between(0, 3));
+    }
+    for (const part of this._nextSnake) {
+      part.kill();
+    }
+    
+    this._nextSnake = [];
+    for (let i:number = 0; i < this._nextColors.length; i++) {
+      const actor:Actor = this.actorGroup.getFirstExists(false);
+      actor.reset(0, 0);
+      if (i === 0) {
+        actor.init(20, 8 - i, this._nextColors[i], ActorType.HEAD, 'head_end');
+        actor.angle = 180;
+      } else if (i === this._nextColors.length - 1) {
+        actor.init(20, 8 - i, this._nextColors[i], ActorType.BODY, 'body_end');
+        actor.angle = 0;
+      } else {
+        actor.init(20, 8 - i, this._nextColors[i], ActorType.BODY, 'body_middle');
+        actor.angle = 0;
+      }
+      this._nextSnake.push(actor);
+    }
+  }
+
   private _createSnake ():void {
     if (this._grid[this._startPos.y][this._startPos.x] !== MatchColor.NONE) {
       this._gameOver = true;
+      this._gameOverText.visible = true;
     }
     this._moveTimer = 0;
     this._newDirection.set(0, 1);
     this._currentSnake = new Snake(this, this._startPos.x, this._startPos.y,
-      this.rnd.between(this._minSnakeLength, this._maxSnakeLength));
-  }
+      this._nextColors);
+
+  } // _createSnake
 
   private _clearGrid ():void {
     for (let y:number = 0; y < this._gridHeight; y++) {
@@ -230,10 +304,16 @@ export class GameState extends Phaser.State {
       } else {
         this._handelingMatches = false;
         this._movingSnakes = false;
+        if (this._targets.length === 0) {
+          this._levelComplete = true;
+          this._levelCompleteText.visible = true;
+        }
         this._createSnake();
+        this._setNextColors();
       }
     }
-  }
+
+  } // _moveSnakeDown
 
   private _getMatches ():boolean {
     let colorPositions:Phaser.Point[] = [];
@@ -296,7 +376,7 @@ export class GameState extends Phaser.State {
 
     return positionsMatched.length > 0;
 
-  } // _handleMatches
+  } // _getMatches
 
   private _removeMatches (positionsMatched:Phaser.Point[]):void {
     for (const pos of positionsMatched) {
@@ -347,9 +427,10 @@ export class GameState extends Phaser.State {
     }
     this._deadSnakes = [];
     for (const newSnake of newSnakes) {
-      const snake:Snake = new Snake(this, 0, 0, 0, newSnake);
+      const snake:Snake = new Snake(this, 0, 0, this._nextColors, newSnake);
       this._deadSnakes.push(snake);
     }
-  }
+
+  } // _removeMatches
 
 } // GameState

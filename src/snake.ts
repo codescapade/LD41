@@ -13,8 +13,8 @@ export class Snake {
   private readonly ZERO:Phaser.Point = new Phaser.Point(0, 0);
 
   private _state:GameState;
-  
-  constructor (state:GameState, x:number, y:number, length:number, prevBody:Actor[] = null) {
+
+  constructor (state:GameState, x:number, y:number, colors:MatchColor[], prevBody:Actor[] = null) {
     this._state = state;
     this.body = [];
     this.currentDirection = new Phaser.Point(0, 1);
@@ -23,10 +23,10 @@ export class Snake {
       this.body = prevBody;
       this.updateSprites();
     } else {
-      for (let i:number = 0; i < length; i++) {
+      for (let i:number = 0; i < colors.length; i++) {
         const part:Actor = state.actorGroup.getFirstExists(false);
         part.reset(0, 0);
-        const color:MatchColor = this._getRndColor();
+        const color:MatchColor = colors[i];
         if (i === 0) {
           part.init(x, y - i, color, ActorType.HEAD, 'head_end');
           part.angle = 180;

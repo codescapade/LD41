@@ -10,8 +10,7 @@ export class PreloadState extends Phaser.State {
   } // preload
 
   public create ():void {
-    this.state.start('game');
-
+    this.state.start('menu');
   } // create
 
 } // PreloadState

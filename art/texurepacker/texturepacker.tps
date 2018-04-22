@@ -239,6 +239,71 @@
                 <key>scale9FromFile</key>
                 <false/>
             </struct>
+            <key type="filename">../sprites/game_over.png</key>
+            <struct type="IndividualSpriteSettings">
+                <key>pivotPoint</key>
+                <point_f>0.5,0.5</point_f>
+                <key>scale9Enabled</key>
+                <false/>
+                <key>scale9Borders</key>
+                <rect>84,15,167,30</rect>
+                <key>scale9Paddings</key>
+                <rect>84,15,167,30</rect>
+                <key>scale9FromFile</key>
+                <false/>
+            </struct>
+            <key type="filename">../sprites/level_complete.png</key>
+            <struct type="IndividualSpriteSettings">
+                <key>pivotPoint</key>
+                <point_f>0.5,0.5</point_f>
+                <key>scale9Enabled</key>
+                <false/>
+                <key>scale9Borders</key>
+                <rect>86,13,172,25</rect>
+                <key>scale9Paddings</key>
+                <rect>86,13,172,25</rect>
+                <key>scale9FromFile</key>
+                <false/>
+            </struct>
+            <key type="filename">../sprites/space_to_start.png</key>
+            <struct type="IndividualSpriteSettings">
+                <key>pivotPoint</key>
+                <point_f>0.5,0.5</point_f>
+                <key>scale9Enabled</key>
+                <false/>
+                <key>scale9Borders</key>
+                <rect>112,12,223,25</rect>
+                <key>scale9Paddings</key>
+                <rect>112,12,223,25</rect>
+                <key>scale9FromFile</key>
+                <false/>
+            </struct>
+            <key type="filename">../sprites/title.png</key>
+            <struct type="IndividualSpriteSettings">
+                <key>pivotPoint</key>
+                <point_f>0.5,0.5</point_f>
+                <key>scale9Enabled</key>
+                <false/>
+                <key>scale9Borders</key>
+                <rect>104,20,207,40</rect>
+                <key>scale9Paddings</key>
+                <rect>104,20,207,40</rect>
+                <key>scale9FromFile</key>
+                <false/>
+            </struct>
+            <key type="filename">../sprites/title_snake.png</key>
+            <struct type="IndividualSpriteSettings">
+                <key>pivotPoint</key>
+                <point_f>0.5,0.5</point_f>
+                <key>scale9Enabled</key>
+                <false/>
+                <key>scale9Borders</key>
+                <rect>50,13,100,25</rect>
+                <key>scale9Paddings</key>
+                <rect>50,13,100,25</rect>
+                <key>scale9FromFile</key>
+                <false/>
+            </struct>
         </map>
         <key>fileList</key>
         <array>
@@ -270,6 +335,11 @@
             <filename>../sprites/target_green.png</filename>
             <filename>../sprites/target_red.png</filename>
             <filename>../sprites/target_yellow.png</filename>
+            <filename>../sprites/game_over.png</filename>
+            <filename>../sprites/space_to_start.png</filename>
+            <filename>../sprites/title_snake.png</filename>
+            <filename>../sprites/title.png</filename>
+            <filename>../sprites/level_complete.png</filename>
         </array>
         <key>ignoreFileList</key>
         <array/>
