@@ -3,4 +3,6 @@ export enum MatchColor {
   GREEN,
   RED,
   YELLOW,
-}
+  NONE,
+
+} // MatchColor

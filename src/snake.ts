@@ -5,43 +5,51 @@ import { GameState } from './states/gameState';
 
 export class Snake {
 
-  private _body:Actor[];
+  public body:Actor[];
+  public alive:boolean = true;
 
-  private _currentDirection:Phaser.Point;
+  public currentDirection:Phaser.Point;
 
   private readonly ZERO:Phaser.Point = new Phaser.Point(0, 0);
 
   private _state:GameState;
-
-  constructor (state:GameState, x:number, y:number, length:number) {
+  
+  constructor (state:GameState, x:number, y:number, length:number, prevBody:Actor[] = null) {
     this._state = state;
-    this._body = [];
-    this._currentDirection = new Phaser.Point(0, 1);
+    this.body = [];
+    this.currentDirection = new Phaser.Point(0, 1);
     
-    for (let i:number = 0; i < length; i++) {
-      const part:Actor = new Actor(state.game, 'sprites');
-      const color:MatchColor = this._getRndColor();
-      if (i === 0) {
-        part.init(x, y - i, color, ActorType.HEAD, 'head_end');
-        part.angle = 180;
-      } else if (i === length - 1) {
-        part.init(x, y - i, color, ActorType.BODY, 'body_end');
-      } else {
-        part.init(x, y - i, color, ActorType.BODY, 'body_middle');
+    if (prevBody) {
+      this.body = prevBody;
+      this.updateSprites();
+    } else {
+      for (let i:number = 0; i < length; i++) {
+        const part:Actor = state.actorGroup.getFirstExists(false);
+        part.reset(0, 0);
+        const color:MatchColor = this._getRndColor();
+        if (i === 0) {
+          part.init(x, y - i, color, ActorType.HEAD, 'head_end');
+          part.angle = 180;
+        } else if (i === length - 1) {
+          part.init(x, y - i, color, ActorType.BODY, 'body_end');
+        } else {
+          part.init(x, y - i, color, ActorType.BODY, 'body_middle');
+        }
+        this.body.push(part);
       }
-      this._body.push(part);
     }
-  }
+    
+  } // constructor
 
   public updateSnake (newDirection:Phaser.Point):void {
-    if (this._validDirection(newDirection)) {
-      this._currentDirection.set(newDirection.x, newDirection.y);
+    if (this.validDirection(newDirection)) {
+      this.currentDirection.set(newDirection.x, newDirection.y);
     }
 
     const oldPos:Phaser.Point = new Phaser.Point();
-    const newPos:Phaser.Point = Phaser.Point.add(this._body[0].gridPosition, this._currentDirection);
+    const newPos:Phaser.Point = Phaser.Point.add(this.body[0].gridPosition, this.currentDirection);
     
-    for (const part of this._body) {
+    for (const part of this.body) {
       oldPos.x = part.gridPosition.x;
       oldPos.y = part.gridPosition.y;
       part.updatePosition(newPos.x, newPos.y);
@@ -49,28 +57,54 @@ export class Snake {
       newPos.y = oldPos.y;
     }
     this.updateSprites();
-  }
+
+  } // updateSnake
+
+  public hit (x:number, y:number):boolean {
+    let hit:boolean = false;
+    for (const part of this.body) {
+      if (part.gridPosition.x === x && part.gridPosition.y === y) {
+        hit = true;
+      }
+    }
+
+    return hit;
+
+  } // hit
 
   public updateSprites ():void {
-    for (let i:number = 0; i < this._body.length; i++) {
-      const part:Actor = this._body[i];
+    for (let i:number = 0; i < this.body.length; i++) {
+      const part:Actor = this.body[i];
       this._setSprite(i, part);
     }
-  }
+
+  } // updateSprites
+
+  public moveDown ():void {
+    for (const part of this.body) {
+      part.updatePosition(part.gridPosition.x, part.gridPosition.y + 1);
+    }
+
+  } // moveDown
+
+  public validDirection (direction:Phaser.Point):boolean {
+    return !Phaser.Point.add(this.currentDirection, direction).equals(this.ZERO);
+
+  } // _validDirection
 
   private _setSprite (index:number, part:Actor):void {
-    const pos:Phaser.Point = this._body[index].gridPosition;
+    const pos:Phaser.Point = this.body[index].gridPosition;
     let nextPos:Phaser.Point;
     let prevPos:Phaser.Point;
     if (index === 0) {
-      if (this._body.length === 1) {
+      if (this.body.length === 1) {
         if (part.actoryType === ActorType.HEAD) {
           part.updateFrame('head_single');
         } else {
           part.updateFrame('body_single');
         }
       } else {
-        nextPos = this._body[index + 1].gridPosition;
+        nextPos = this.body[index + 1].gridPosition;
         if (part.actoryType === ActorType.HEAD) {
           part.updateFrame('head_end');
         } else {
@@ -86,8 +120,8 @@ export class Snake {
           part.angle = 180;
         }
       }
-    } else if (index === this._body.length - 1) {
-      prevPos = this._body[index - 1].gridPosition;
+    } else if (index === this.body.length - 1) {
+      prevPos = this.body[index - 1].gridPosition;
       part.updateFrame('body_end');
       if (prevPos.x > pos.x) {
         part.angle = 270;
@@ -99,36 +133,35 @@ export class Snake {
         part.angle = 180;
       }
     } else {
-      nextPos = this._body[index + 1].gridPosition;
-      prevPos = this._body[index - 1].gridPosition;
-      if (nextPos.x === prevPos.x) {
-        part.updateFrame('body_middle');
-        part.angle = 90;
-      } else if (nextPos.y === prevPos.y) {
+      nextPos = this.body[index + 1].gridPosition;
+      prevPos = this.body[index - 1].gridPosition;
+      if (nextPos.x === prevPos.x || nextPos.y === prevPos.y) {
         part.updateFrame('body_middle');
         part.angle = 0;
       } else {
         part.updateFrame('body_corner');
-        if ((nextPos.x === 1 && prevPos.y === 1) || (prevPos.x === 1 && nextPos.y === 1)) {
-          part.angle = 270;
-        } else if ((nextPos.x === -1 && prevPos.y === 1) || (prevPos.x === -1 && nextPos.y === 1)) {
-          part.angle = 0;
-        } else if ((nextPos.x === -1 && prevPos.y === -1) || (prevPos.x === -1 && nextPos.y === -1)) {
-          part.angle = 90;
-        } else if ((nextPos.x === 1 && prevPos.y === -1) || (prevPos.x === 1 && nextPos.y === -1)) {
+        if ((pos.x - nextPos.x === 1 && pos.y - prevPos.y === 1) ||
+          (pos.x - prevPos.x === 1 && pos.y - nextPos.y === 1)) {
           part.angle = 180;
+        } else if ((pos.x - nextPos.x === -1 && pos.y - prevPos.y === 1) ||
+          (pos.x - prevPos.x === -1 && pos.y - nextPos.y === 1)) {
+          part.angle = 270;
+        } else if ((pos.x - nextPos.x === -1 && pos.y - prevPos.y === -1) ||
+          (pos.x - prevPos.x === -1 && pos.y - nextPos.y === -1)) {
+          part.angle = 0;
+        } else if ((pos.x - nextPos.x === 1 && pos.y - prevPos.y === -1) ||
+          (pos.x - prevPos.x === 1 && pos.y - nextPos.y === -1)) {
+          part.angle = 90;
         }
       }
     }
-  }
 
-  private _validDirection (direction:Phaser.Point):boolean {
-    return !Phaser.Point.add(this._currentDirection, direction).equals(this.ZERO);
-  }
+  } // _setSprite
 
   private _getRndColor ():MatchColor {
     const nr:number = this._state.rnd.between(0, 3);
-    console.log(nr);
+    
     return nr;
   }
-}
+
+} // _getRndColor
