@@ -124,6 +124,17 @@ var Gbl = function () {
             return new Phaser.Point(Math.floor((x - Gbl._minX) / Gbl.TILESIZE), Math.floor((y - Gbl._minY) / Gbl.TILESIZE));
         } // worldToGrid
 
+    }, {
+        key: "nextLevel",
+        value: function nextLevel() {
+            Gbl.currentLevel++;
+            if (Gbl.currentDelay > Gbl._minDelay) {
+                Gbl.currentDelay -= Gbl._delayStep;
+            }
+            if (Gbl.currentTargets < Gbl._maxTargets) {
+                Gbl.currentTargets += Math.floor(Math.random() * (Gbl._maxTargetStep - Gbl._minTargetStep) + Gbl._minTargetStep);
+            }
+        }
     }]);
 
     return Gbl;
@@ -131,6 +142,14 @@ var Gbl = function () {
 
 
 Gbl.TILESIZE = 24;
+Gbl.currentLevel = 1;
+Gbl.currentDelay = 380;
+Gbl.currentTargets = 8;
+Gbl._minDelay = 140;
+Gbl._delayStep = 20;
+Gbl._maxTargets = 100;
+Gbl._minTargetStep = 5;
+Gbl._maxTargetStep = 8;
 exports.Gbl = Gbl;
 
 },{}],4:[function(require,module,exports){
@@ -145,6 +164,7 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 Object.defineProperty(exports, "__esModule", { value: true });
 var bootState_1 = require("./states/bootState");
 var gameState_1 = require("./states/gameState");
+var menuState_1 = require("./states/menuState");
 var preloadState_1 = require("./states/preloadState");
 
 var Main = function (_Phaser$Game) {
@@ -157,6 +177,7 @@ var Main = function (_Phaser$Game) {
 
         _this.state.add('boot', bootState_1.BootState);
         _this.state.add('preload', preloadState_1.PreloadState);
+        _this.state.add('menu', menuState_1.MenuState);
         _this.state.add('game', gameState_1.GameState);
         _this.state.start('boot');
         return _this;
@@ -171,7 +192,7 @@ window.onload = function () {
     new Main();
 };
 
-},{"./states/bootState":7,"./states/gameState":8,"./states/preloadState":9}],5:[function(require,module,exports){
+},{"./states/bootState":7,"./states/gameState":8,"./states/menuState":9,"./states/preloadState":10}],5:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -195,7 +216,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var actorType_1 = require("./actorType");
 
 var Snake = function () {
-    function Snake(state, x, y, length) {
+    function Snake(state, x, y, colors) {
         var prevBody = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : null;
 
         _classCallCheck(this, Snake);
@@ -209,10 +230,10 @@ var Snake = function () {
             this.body = prevBody;
             this.updateSprites();
         } else {
-            for (var i = 0; i < length; i++) {
+            for (var i = 0; i < colors.length; i++) {
                 var part = state.actorGroup.getFirstExists(false);
                 part.reset(0, 0);
-                var color = this._getRndColor();
+                var color = colors[i];
                 if (i === 0) {
                     part.init(x, y - i, color, actorType_1.ActorType.HEAD, 'head_end');
                     part.angle = 180;
@@ -494,26 +515,33 @@ var GameState = function (_Phaser$State) {
 
         _this._gridWidth = 15;
         _this._gridHeight = 24;
-        _this._moveDelay = 350;
         _this._moveTimer = 0;
         _this._fallDelay = 30;
         _this._fallTimer = 0;
-        _this._nrOfTargets = 8;
         _this._minSnakeLength = 2;
         _this._maxSnakeLength = 5;
         _this._startPos = new Phaser.Point(7, 0);
         _this._handelingMatches = false;
         _this._movingSnakes = false;
         _this._gameOver = false;
+        _this._levelComplete = false;
         return _this;
     }
 
     _createClass(GameState, [{
         key: "create",
         value: function create() {
+            this._handelingMatches = false;
+            this._movingSnakes = false;
+            this._gameOver = false;
+            this._levelComplete = false;
+            this._nextColors = [];
+            this._nextSnake = [];
             gbl_1.Gbl.init(this._gridWidth, this._gridHeight, new Phaser.Point(this.game.world.centerX, this.game.world.centerY));
             var background = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, 'grid');
             background.anchor.set(0.5);
+            var nextBorder = this.game.add.sprite(712, 168, 'sprites', 'next_border');
+            nextBorder.anchor.set(0.5);
             this.actorGroup = this.add.group();
             for (var i = 0; i < 300; i++) {
                 var actor = new actor_1.Actor(this.game, 'sprites');
@@ -522,6 +550,12 @@ var GameState = function (_Phaser$State) {
             }
             var border = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, 'border');
             border.anchor.set(0.5);
+            this._gameOverText = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, 'sprites', 'game_over');
+            this._gameOverText.anchor.set(0.5);
+            this._gameOverText.visible = false;
+            this._levelCompleteText = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, 'sprites', 'level_complete');
+            this._levelCompleteText.anchor.set(0.5);
+            this._levelCompleteText.visible = false;
             this._grid = [];
             for (var y = 0; y < this._gridHeight; y++) {
                 var row = [];
@@ -530,10 +564,16 @@ var GameState = function (_Phaser$State) {
                 }
                 this._grid.push(row);
             }
+            var textStyle = { font: '28px Arial Black', fill: '#ffffff' };
+            this.game.add.text(16, 70, 'Level: ' + gbl_1.Gbl.currentLevel, textStyle);
+            textStyle.font = '24px Arial Black';
+            this.game.add.text(680, 64, 'Next', textStyle);
             this._deadSnakes = [];
-            this._setTargets(this._nrOfTargets);
+            this._setTargets(gbl_1.Gbl.currentTargets);
             this._newDirection = new Phaser.Point(0, 1);
+            this._setNextColors();
             this._createSnake();
+            this._setNextColors();
         } // create
 
     }, {
@@ -541,7 +581,13 @@ var GameState = function (_Phaser$State) {
         value: function update() {
             if (this._gameOver) {
                 if (this.game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR)) {
-                    // load menu here
+                    this.state.start('menu');
+                }
+                return;
+            } else if (this._levelComplete) {
+                if (this.game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR)) {
+                    gbl_1.Gbl.nextLevel();
+                    this.state.start('game');
                 }
                 return;
             }
@@ -565,7 +611,7 @@ var GameState = function (_Phaser$State) {
             } else if (this.game.input.keyboard.isDown(Phaser.Keyboard.DOWN)) {
                 this._newDirection.set(0, 1);
             }
-            if (this._moveTimer < this._moveDelay) {
+            if (this._moveTimer < gbl_1.Gbl.currentDelay) {
                 this._moveTimer += this.game.time.elapsed;
             } else {
                 this._moveTimer = 0;
@@ -588,6 +634,7 @@ var GameState = function (_Phaser$State) {
 
                             if (part.gridPosition.y < 0) {
                                 this._gameOver = true;
+                                this._gameOverText.visible = true;
                             }
                         }
                     } catch (err) {
@@ -621,15 +668,67 @@ var GameState = function (_Phaser$State) {
         } // render
 
     }, {
+        key: "_setNextColors",
+        value: function _setNextColors() {
+            this._nextColors = [];
+            var len = this.rnd.between(this._minSnakeLength, this._maxSnakeLength);
+            for (var i = 0; i < len; i++) {
+                this._nextColors.push(this.rnd.between(0, 3));
+            }
+            var _iteratorNormalCompletion2 = true;
+            var _didIteratorError2 = false;
+            var _iteratorError2 = undefined;
+
+            try {
+                for (var _iterator2 = this._nextSnake[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+                    var part = _step2.value;
+
+                    part.kill();
+                }
+            } catch (err) {
+                _didIteratorError2 = true;
+                _iteratorError2 = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion2 && _iterator2.return) {
+                        _iterator2.return();
+                    }
+                } finally {
+                    if (_didIteratorError2) {
+                        throw _iteratorError2;
+                    }
+                }
+            }
+
+            this._nextSnake = [];
+            for (var _i = 0; _i < this._nextColors.length; _i++) {
+                var actor = this.actorGroup.getFirstExists(false);
+                actor.reset(0, 0);
+                if (_i === 0) {
+                    actor.init(20, 8 - _i, this._nextColors[_i], actorType_1.ActorType.HEAD, 'head_end');
+                    actor.angle = 180;
+                } else if (_i === this._nextColors.length - 1) {
+                    actor.init(20, 8 - _i, this._nextColors[_i], actorType_1.ActorType.BODY, 'body_end');
+                    actor.angle = 0;
+                } else {
+                    actor.init(20, 8 - _i, this._nextColors[_i], actorType_1.ActorType.BODY, 'body_middle');
+                    actor.angle = 0;
+                }
+                this._nextSnake.push(actor);
+            }
+        }
+    }, {
         key: "_createSnake",
         value: function _createSnake() {
             if (this._grid[this._startPos.y][this._startPos.x] !== matchColor_1.MatchColor.NONE) {
                 this._gameOver = true;
+                this._gameOverText.visible = true;
             }
             this._moveTimer = 0;
             this._newDirection.set(0, 1);
-            this._currentSnake = new snake_1.Snake(this, this._startPos.x, this._startPos.y, this.rnd.between(this._minSnakeLength, this._maxSnakeLength));
-        }
+            this._currentSnake = new snake_1.Snake(this, this._startPos.x, this._startPos.y, this._nextColors);
+        } // _createSnake
+
     }, {
         key: "_clearGrid",
         value: function _clearGrid() {
@@ -680,57 +779,28 @@ var GameState = function (_Phaser$State) {
         key: "_moveSnakesDown",
         value: function _moveSnakesDown() {
             var foundSnakeToMove = false;
-            var _iteratorNormalCompletion2 = true;
-            var _didIteratorError2 = false;
-            var _iteratorError2 = undefined;
+            var _iteratorNormalCompletion3 = true;
+            var _didIteratorError3 = false;
+            var _iteratorError3 = undefined;
 
             try {
-                for (var _iterator2 = this._deadSnakes[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-                    var snake = _step2.value;
+                for (var _iterator3 = this._deadSnakes[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+                    var snake = _step3.value;
 
                     var body = snake.body;
                     var lowPositions = [];
-                    var _iteratorNormalCompletion3 = true;
-                    var _didIteratorError3 = false;
-                    var _iteratorError3 = undefined;
-
-                    try {
-                        for (var _iterator3 = body[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-                            var _part = _step3.value;
-
-                            var x = _part.gridPosition.x;
-                            var y = _part.gridPosition.y + 1;
-                            if (!snake.hit(x, y)) {
-                                lowPositions.push(new Phaser.Point(x, y));
-                            }
-                        }
-                    } catch (err) {
-                        _didIteratorError3 = true;
-                        _iteratorError3 = err;
-                    } finally {
-                        try {
-                            if (!_iteratorNormalCompletion3 && _iterator3.return) {
-                                _iterator3.return();
-                            }
-                        } finally {
-                            if (_didIteratorError3) {
-                                throw _iteratorError3;
-                            }
-                        }
-                    }
-
-                    var canMove = true;
                     var _iteratorNormalCompletion4 = true;
                     var _didIteratorError4 = false;
                     var _iteratorError4 = undefined;
 
                     try {
-                        for (var _iterator4 = lowPositions[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-                            var _pos = _step4.value;
+                        for (var _iterator4 = body[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+                            var _part = _step4.value;
 
-                            if (_pos.y >= this._gridHeight || this._grid[_pos.y][_pos.x] !== matchColor_1.MatchColor.NONE) {
-                                canMove = false;
-                                break;
+                            var x = _part.gridPosition.x;
+                            var y = _part.gridPosition.y + 1;
+                            if (!snake.hit(x, y)) {
+                                lowPositions.push(new Phaser.Point(x, y));
                             }
                         }
                     } catch (err) {
@@ -748,29 +818,58 @@ var GameState = function (_Phaser$State) {
                         }
                     }
 
+                    var canMove = true;
+                    var _iteratorNormalCompletion5 = true;
+                    var _didIteratorError5 = false;
+                    var _iteratorError5 = undefined;
+
+                    try {
+                        for (var _iterator5 = lowPositions[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+                            var _pos = _step5.value;
+
+                            if (_pos.y >= this._gridHeight || this._grid[_pos.y][_pos.x] !== matchColor_1.MatchColor.NONE) {
+                                canMove = false;
+                                break;
+                            }
+                        }
+                    } catch (err) {
+                        _didIteratorError5 = true;
+                        _iteratorError5 = err;
+                    } finally {
+                        try {
+                            if (!_iteratorNormalCompletion5 && _iterator5.return) {
+                                _iterator5.return();
+                            }
+                        } finally {
+                            if (_didIteratorError5) {
+                                throw _iteratorError5;
+                            }
+                        }
+                    }
+
                     if (canMove) {
-                        var _iteratorNormalCompletion5 = true;
-                        var _didIteratorError5 = false;
-                        var _iteratorError5 = undefined;
+                        var _iteratorNormalCompletion6 = true;
+                        var _didIteratorError6 = false;
+                        var _iteratorError6 = undefined;
 
                         try {
-                            for (var _iterator5 = body[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
-                                var part = _step5.value;
+                            for (var _iterator6 = body[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
+                                var part = _step6.value;
 
                                 var pos = part.gridPosition;
                                 this._grid[pos.y][pos.x] = matchColor_1.MatchColor.NONE;
                             }
                         } catch (err) {
-                            _didIteratorError5 = true;
-                            _iteratorError5 = err;
+                            _didIteratorError6 = true;
+                            _iteratorError6 = err;
                         } finally {
                             try {
-                                if (!_iteratorNormalCompletion5 && _iterator5.return) {
-                                    _iterator5.return();
+                                if (!_iteratorNormalCompletion6 && _iterator6.return) {
+                                    _iterator6.return();
                                 }
                             } finally {
-                                if (_didIteratorError5) {
-                                    throw _iteratorError5;
+                                if (_didIteratorError6) {
+                                    throw _iteratorError6;
                                 }
                             }
                         }
@@ -778,43 +877,43 @@ var GameState = function (_Phaser$State) {
                         snake.moveDown();
                         foundSnakeToMove = true;
                     }
-                    var _iteratorNormalCompletion6 = true;
-                    var _didIteratorError6 = false;
-                    var _iteratorError6 = undefined;
+                    var _iteratorNormalCompletion7 = true;
+                    var _didIteratorError7 = false;
+                    var _iteratorError7 = undefined;
 
                     try {
-                        for (var _iterator6 = body[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
-                            var _part2 = _step6.value;
+                        for (var _iterator7 = body[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
+                            var _part2 = _step7.value;
 
                             var _pos2 = _part2.gridPosition;
                             this._grid[_pos2.y][_pos2.x] = _part2.color;
                         }
                     } catch (err) {
-                        _didIteratorError6 = true;
-                        _iteratorError6 = err;
+                        _didIteratorError7 = true;
+                        _iteratorError7 = err;
                     } finally {
                         try {
-                            if (!_iteratorNormalCompletion6 && _iterator6.return) {
-                                _iterator6.return();
+                            if (!_iteratorNormalCompletion7 && _iterator7.return) {
+                                _iterator7.return();
                             }
                         } finally {
-                            if (_didIteratorError6) {
-                                throw _iteratorError6;
+                            if (_didIteratorError7) {
+                                throw _iteratorError7;
                             }
                         }
                     }
                 }
             } catch (err) {
-                _didIteratorError2 = true;
-                _iteratorError2 = err;
+                _didIteratorError3 = true;
+                _iteratorError3 = err;
             } finally {
                 try {
-                    if (!_iteratorNormalCompletion2 && _iterator2.return) {
-                        _iterator2.return();
+                    if (!_iteratorNormalCompletion3 && _iterator3.return) {
+                        _iterator3.return();
                     }
                 } finally {
-                    if (_didIteratorError2) {
-                        throw _iteratorError2;
+                    if (_didIteratorError3) {
+                        throw _iteratorError3;
                     }
                 }
             }
@@ -825,10 +924,16 @@ var GameState = function (_Phaser$State) {
                 } else {
                     this._handelingMatches = false;
                     this._movingSnakes = false;
+                    if (this._targets.length === 0) {
+                        this._levelComplete = true;
+                        this._levelCompleteText.visible = true;
+                    }
                     this._createSnake();
+                    this._setNextColors();
                 }
             }
-        }
+        } // _moveSnakeDown
+
     }, {
         key: "_getMatches",
         value: function _getMatches() {
@@ -842,45 +947,15 @@ var GameState = function (_Phaser$State) {
                     var color = this._grid[y][x];
                     if (color === matchColor_1.MatchColor.NONE || color !== currentColor) {
                         if (colorPositions.length >= 4) {
-                            var _iteratorNormalCompletion7 = true;
-                            var _didIteratorError7 = false;
-                            var _iteratorError7 = undefined;
-
-                            try {
-                                for (var _iterator7 = colorPositions[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
-                                    var c = _step7.value;
-
-                                    positionsMatched.push(new Phaser.Point(c.x, c.y));
-                                }
-                            } catch (err) {
-                                _didIteratorError7 = true;
-                                _iteratorError7 = err;
-                            } finally {
-                                try {
-                                    if (!_iteratorNormalCompletion7 && _iterator7.return) {
-                                        _iterator7.return();
-                                    }
-                                } finally {
-                                    if (_didIteratorError7) {
-                                        throw _iteratorError7;
-                                    }
-                                }
-                            }
-                        }
-                        colorPositions = [new Phaser.Point(x, y)];
-                        currentColor = color;
-                    } else if (x === this._gridWidth - 1) {
-                        colorPositions.push(new Phaser.Point(x, y));
-                        if (colorPositions.length >= 4) {
                             var _iteratorNormalCompletion8 = true;
                             var _didIteratorError8 = false;
                             var _iteratorError8 = undefined;
 
                             try {
                                 for (var _iterator8 = colorPositions[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
-                                    var _c = _step8.value;
+                                    var c = _step8.value;
 
-                                    positionsMatched.push(new Phaser.Point(_c.x, _c.y));
+                                    positionsMatched.push(new Phaser.Point(c.x, c.y));
                                 }
                             } catch (err) {
                                 _didIteratorError8 = true;
@@ -897,17 +972,10 @@ var GameState = function (_Phaser$State) {
                                 }
                             }
                         }
-                    } else {
+                        colorPositions = [new Phaser.Point(x, y)];
+                        currentColor = color;
+                    } else if (x === this._gridWidth - 1) {
                         colorPositions.push(new Phaser.Point(x, y));
-                    }
-                }
-            }
-            for (var _x = 0; _x < this._gridWidth; _x++) {
-                colorPositions = [new Phaser.Point(_x, 0)];
-                currentColor = this._grid[0][_x];
-                for (var _y = 1; _y < this._gridHeight; _y++) {
-                    var _color = this._grid[_y][_x];
-                    if (_color === matchColor_1.MatchColor.NONE || _color !== currentColor) {
                         if (colorPositions.length >= 4) {
                             var _iteratorNormalCompletion9 = true;
                             var _didIteratorError9 = false;
@@ -915,9 +983,9 @@ var GameState = function (_Phaser$State) {
 
                             try {
                                 for (var _iterator9 = colorPositions[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
-                                    var _c2 = _step9.value;
+                                    var _c = _step9.value;
 
-                                    positionsMatched.push(new Phaser.Point(_c2.x, _c2.y));
+                                    positionsMatched.push(new Phaser.Point(_c.x, _c.y));
                                 }
                             } catch (err) {
                                 _didIteratorError9 = true;
@@ -934,10 +1002,17 @@ var GameState = function (_Phaser$State) {
                                 }
                             }
                         }
-                        colorPositions = [new Phaser.Point(_x, _y)];
-                        currentColor = _color;
-                    } else if (_y === this._gridHeight - 1) {
-                        colorPositions.push(new Phaser.Point(_x, _y));
+                    } else {
+                        colorPositions.push(new Phaser.Point(x, y));
+                    }
+                }
+            }
+            for (var _x = 0; _x < this._gridWidth; _x++) {
+                colorPositions = [new Phaser.Point(_x, 0)];
+                currentColor = this._grid[0][_x];
+                for (var _y = 1; _y < this._gridHeight; _y++) {
+                    var _color = this._grid[_y][_x];
+                    if (_color === matchColor_1.MatchColor.NONE || _color !== currentColor) {
                         if (colorPositions.length >= 4) {
                             var _iteratorNormalCompletion10 = true;
                             var _didIteratorError10 = false;
@@ -945,9 +1020,9 @@ var GameState = function (_Phaser$State) {
 
                             try {
                                 for (var _iterator10 = colorPositions[Symbol.iterator](), _step10; !(_iteratorNormalCompletion10 = (_step10 = _iterator10.next()).done); _iteratorNormalCompletion10 = true) {
-                                    var _c3 = _step10.value;
+                                    var _c2 = _step10.value;
 
-                                    positionsMatched.push(new Phaser.Point(_c3.x, _c3.y));
+                                    positionsMatched.push(new Phaser.Point(_c2.x, _c2.y));
                                 }
                             } catch (err) {
                                 _didIteratorError10 = true;
@@ -964,6 +1039,36 @@ var GameState = function (_Phaser$State) {
                                 }
                             }
                         }
+                        colorPositions = [new Phaser.Point(_x, _y)];
+                        currentColor = _color;
+                    } else if (_y === this._gridHeight - 1) {
+                        colorPositions.push(new Phaser.Point(_x, _y));
+                        if (colorPositions.length >= 4) {
+                            var _iteratorNormalCompletion11 = true;
+                            var _didIteratorError11 = false;
+                            var _iteratorError11 = undefined;
+
+                            try {
+                                for (var _iterator11 = colorPositions[Symbol.iterator](), _step11; !(_iteratorNormalCompletion11 = (_step11 = _iterator11.next()).done); _iteratorNormalCompletion11 = true) {
+                                    var _c3 = _step11.value;
+
+                                    positionsMatched.push(new Phaser.Point(_c3.x, _c3.y));
+                                }
+                            } catch (err) {
+                                _didIteratorError11 = true;
+                                _iteratorError11 = err;
+                            } finally {
+                                try {
+                                    if (!_iteratorNormalCompletion11 && _iterator11.return) {
+                                        _iterator11.return();
+                                    }
+                                } finally {
+                                    if (_didIteratorError11) {
+                                        throw _iteratorError11;
+                                    }
+                                }
+                            }
+                        }
                     } else {
                         colorPositions.push(new Phaser.Point(_x, _y));
                     }
@@ -971,27 +1076,27 @@ var GameState = function (_Phaser$State) {
             }
             this._removeMatches(positionsMatched);
             return positionsMatched.length > 0;
-        } // _handleMatches
+        } // _getMatches
 
     }, {
         key: "_removeMatches",
         value: function _removeMatches(positionsMatched) {
-            var _iteratorNormalCompletion11 = true;
-            var _didIteratorError11 = false;
-            var _iteratorError11 = undefined;
+            var _iteratorNormalCompletion12 = true;
+            var _didIteratorError12 = false;
+            var _iteratorError12 = undefined;
 
             try {
-                for (var _iterator11 = positionsMatched[Symbol.iterator](), _step11; !(_iteratorNormalCompletion11 = (_step11 = _iterator11.next()).done); _iteratorNormalCompletion11 = true) {
-                    var pos = _step11.value;
+                for (var _iterator12 = positionsMatched[Symbol.iterator](), _step12; !(_iteratorNormalCompletion12 = (_step12 = _iterator12.next()).done); _iteratorNormalCompletion12 = true) {
+                    var pos = _step12.value;
 
                     var hitTarget = false;
-                    var _iteratorNormalCompletion14 = true;
-                    var _didIteratorError14 = false;
-                    var _iteratorError14 = undefined;
+                    var _iteratorNormalCompletion15 = true;
+                    var _didIteratorError15 = false;
+                    var _iteratorError15 = undefined;
 
                     try {
-                        for (var _iterator14 = this._targets[Symbol.iterator](), _step14; !(_iteratorNormalCompletion14 = (_step14 = _iterator14.next()).done); _iteratorNormalCompletion14 = true) {
-                            var target = _step14.value;
+                        for (var _iterator15 = this._targets[Symbol.iterator](), _step15; !(_iteratorNormalCompletion15 = (_step15 = _iterator15.next()).done); _iteratorNormalCompletion15 = true) {
+                            var target = _step15.value;
 
                             if (pos.equals(target.gridPosition)) {
                                 hitTarget = true;
@@ -1002,35 +1107,35 @@ var GameState = function (_Phaser$State) {
                             }
                         }
                     } catch (err) {
-                        _didIteratorError14 = true;
-                        _iteratorError14 = err;
+                        _didIteratorError15 = true;
+                        _iteratorError15 = err;
                     } finally {
                         try {
-                            if (!_iteratorNormalCompletion14 && _iterator14.return) {
-                                _iterator14.return();
+                            if (!_iteratorNormalCompletion15 && _iterator15.return) {
+                                _iterator15.return();
                             }
                         } finally {
-                            if (_didIteratorError14) {
-                                throw _iteratorError14;
+                            if (_didIteratorError15) {
+                                throw _iteratorError15;
                             }
                         }
                     }
 
                     if (!hitTarget) {
-                        var _iteratorNormalCompletion15 = true;
-                        var _didIteratorError15 = false;
-                        var _iteratorError15 = undefined;
+                        var _iteratorNormalCompletion16 = true;
+                        var _didIteratorError16 = false;
+                        var _iteratorError16 = undefined;
 
                         try {
-                            for (var _iterator15 = this._deadSnakes[Symbol.iterator](), _step15; !(_iteratorNormalCompletion15 = (_step15 = _iterator15.next()).done); _iteratorNormalCompletion15 = true) {
-                                var snake = _step15.value;
-                                var _iteratorNormalCompletion16 = true;
-                                var _didIteratorError16 = false;
-                                var _iteratorError16 = undefined;
+                            for (var _iterator16 = this._deadSnakes[Symbol.iterator](), _step16; !(_iteratorNormalCompletion16 = (_step16 = _iterator16.next()).done); _iteratorNormalCompletion16 = true) {
+                                var snake = _step16.value;
+                                var _iteratorNormalCompletion17 = true;
+                                var _didIteratorError17 = false;
+                                var _iteratorError17 = undefined;
 
                                 try {
-                                    for (var _iterator16 = snake.body[Symbol.iterator](), _step16; !(_iteratorNormalCompletion16 = (_step16 = _iterator16.next()).done); _iteratorNormalCompletion16 = true) {
-                                        var part = _step16.value;
+                                    for (var _iterator17 = snake.body[Symbol.iterator](), _step17; !(_iteratorNormalCompletion17 = (_step17 = _iterator17.next()).done); _iteratorNormalCompletion17 = true) {
+                                        var part = _step17.value;
 
                                         if (part) {
                                             if (pos.equals(part.gridPosition)) {
@@ -1041,73 +1146,33 @@ var GameState = function (_Phaser$State) {
                                         }
                                     }
                                 } catch (err) {
-                                    _didIteratorError16 = true;
-                                    _iteratorError16 = err;
+                                    _didIteratorError17 = true;
+                                    _iteratorError17 = err;
                                 } finally {
                                     try {
-                                        if (!_iteratorNormalCompletion16 && _iterator16.return) {
-                                            _iterator16.return();
+                                        if (!_iteratorNormalCompletion17 && _iterator17.return) {
+                                            _iterator17.return();
                                         }
                                     } finally {
-                                        if (_didIteratorError16) {
-                                            throw _iteratorError16;
+                                        if (_didIteratorError17) {
+                                            throw _iteratorError17;
                                         }
                                     }
                                 }
                             }
                         } catch (err) {
-                            _didIteratorError15 = true;
-                            _iteratorError15 = err;
+                            _didIteratorError16 = true;
+                            _iteratorError16 = err;
                         } finally {
                             try {
-                                if (!_iteratorNormalCompletion15 && _iterator15.return) {
-                                    _iterator15.return();
+                                if (!_iteratorNormalCompletion16 && _iterator16.return) {
+                                    _iterator16.return();
                                 }
                             } finally {
-                                if (_didIteratorError15) {
-                                    throw _iteratorError15;
+                                if (_didIteratorError16) {
+                                    throw _iteratorError16;
                                 }
                             }
-                        }
-                    }
-                }
-            } catch (err) {
-                _didIteratorError11 = true;
-                _iteratorError11 = err;
-            } finally {
-                try {
-                    if (!_iteratorNormalCompletion11 && _iterator11.return) {
-                        _iterator11.return();
-                    }
-                } finally {
-                    if (_didIteratorError11) {
-                        throw _iteratorError11;
-                    }
-                }
-            }
-
-            var newSnakes = [];
-            var _iteratorNormalCompletion12 = true;
-            var _didIteratorError12 = false;
-            var _iteratorError12 = undefined;
-
-            try {
-                for (var _iterator12 = this._deadSnakes[Symbol.iterator](), _step12; !(_iteratorNormalCompletion12 = (_step12 = _iterator12.next()).done); _iteratorNormalCompletion12 = true) {
-                    var _snake = _step12.value;
-
-                    var parts = [];
-                    for (var i = 0; i < _snake.body.length; i++) {
-                        var _part3 = _snake.body[i];
-                        if (!_part3.alive) {
-                            if (parts.length > 0) {
-                                newSnakes.push(parts);
-                                parts = [];
-                            }
-                        } else if (i === _snake.body.length - 1) {
-                            parts.push(_part3);
-                            newSnakes.push(parts);
-                        } else {
-                            parts.push(_part3);
                         }
                     }
                 }
@@ -1126,17 +1191,30 @@ var GameState = function (_Phaser$State) {
                 }
             }
 
-            this._deadSnakes = [];
+            var newSnakes = [];
             var _iteratorNormalCompletion13 = true;
             var _didIteratorError13 = false;
             var _iteratorError13 = undefined;
 
             try {
-                for (var _iterator13 = newSnakes[Symbol.iterator](), _step13; !(_iteratorNormalCompletion13 = (_step13 = _iterator13.next()).done); _iteratorNormalCompletion13 = true) {
-                    var newSnake = _step13.value;
+                for (var _iterator13 = this._deadSnakes[Symbol.iterator](), _step13; !(_iteratorNormalCompletion13 = (_step13 = _iterator13.next()).done); _iteratorNormalCompletion13 = true) {
+                    var _snake = _step13.value;
 
-                    var _snake2 = new snake_1.Snake(this, 0, 0, 0, newSnake);
-                    this._deadSnakes.push(_snake2);
+                    var parts = [];
+                    for (var i = 0; i < _snake.body.length; i++) {
+                        var _part3 = _snake.body[i];
+                        if (!_part3.alive) {
+                            if (parts.length > 0) {
+                                newSnakes.push(parts);
+                                parts = [];
+                            }
+                        } else if (i === _snake.body.length - 1) {
+                            parts.push(_part3);
+                            newSnakes.push(parts);
+                        } else {
+                            parts.push(_part3);
+                        }
+                    }
                 }
             } catch (err) {
                 _didIteratorError13 = true;
@@ -1152,7 +1230,35 @@ var GameState = function (_Phaser$State) {
                     }
                 }
             }
-        }
+
+            this._deadSnakes = [];
+            var _iteratorNormalCompletion14 = true;
+            var _didIteratorError14 = false;
+            var _iteratorError14 = undefined;
+
+            try {
+                for (var _iterator14 = newSnakes[Symbol.iterator](), _step14; !(_iteratorNormalCompletion14 = (_step14 = _iterator14.next()).done); _iteratorNormalCompletion14 = true) {
+                    var newSnake = _step14.value;
+
+                    var _snake2 = new snake_1.Snake(this, 0, 0, this._nextColors, newSnake);
+                    this._deadSnakes.push(_snake2);
+                }
+            } catch (err) {
+                _didIteratorError14 = true;
+                _iteratorError14 = err;
+            } finally {
+                try {
+                    if (!_iteratorNormalCompletion14 && _iterator14.return) {
+                        _iterator14.return();
+                    }
+                } finally {
+                    if (_didIteratorError14) {
+                        throw _iteratorError14;
+                    }
+                }
+            }
+        } // _removeMatches
+
     }]);
 
     return GameState;
@@ -1162,6 +1268,67 @@ var GameState = function (_Phaser$State) {
 exports.GameState = GameState;
 
 },{"../actor":1,"../actorType":2,"../gbl":3,"../matchColor":5,"../snake":6}],9:[function(require,module,exports){
+"use strict";
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var gbl_1 = require("../gbl");
+
+var MenuState = function (_Phaser$State) {
+    _inherits(MenuState, _Phaser$State);
+
+    function MenuState() {
+        _classCallCheck(this, MenuState);
+
+        return _possibleConstructorReturn(this, (MenuState.__proto__ || Object.getPrototypeOf(MenuState)).apply(this, arguments));
+    }
+
+    _createClass(MenuState, [{
+        key: "create",
+        value: function create() {
+            var title = this.game.add.sprite(this.world.centerX, 100, 'sprites', 'title');
+            title.anchor.set(0.5);
+            var snake = this.game.add.sprite(this.world.centerX, this.world.centerY, 'sprites', 'title_snake');
+            snake.anchor.set(0.5);
+            var instruction = this.game.add.sprite(this.world.centerX, 420, 'sprites', 'space_to_start');
+            instruction.anchor.set(0.5);
+            var name = this.game.add.sprite(this.world.width - 20, 580, 'sprites', 'my_name');
+            name.anchor.set(1);
+        } // create
+
+    }, {
+        key: "update",
+        value: function update() {
+            if (this.game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR)) {
+                this._startGame();
+            }
+        } // update
+
+    }, {
+        key: "_startGame",
+        value: function _startGame() {
+            gbl_1.Gbl.currentLevel = 1;
+            gbl_1.Gbl.currentDelay = 375;
+            gbl_1.Gbl.currentTargets = 8;
+            this.state.start('game');
+        } // _startGame
+
+    }]);
+
+    return MenuState;
+}(Phaser.State); // MenuState
+
+
+exports.MenuState = MenuState;
+
+},{"../gbl":3}],10:[function(require,module,exports){
 "use strict";
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -1194,7 +1361,7 @@ var PreloadState = function (_Phaser$State) {
     }, {
         key: "create",
         value: function create() {
-            this.state.start('game');
+            this.state.start('menu');
         } // create
 
     }]);

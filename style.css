@@ -1,0 +1,23 @@
+
+body {
+  background-color: #999;
+}
+
+.content {
+  margin: 20px auto;
+  width: 800px;
+}
+
+.title {
+  text-align: center;
+  color: #fff;
+  font-size: 40px;
+  padding-bottom: 20px;
+}
+
+.theme {
+  text-align: center;
+  color: #fff;
+  font-size: 24px;
+  padding-top: 16px;
+}
