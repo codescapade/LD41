@@ -9,13 +9,15 @@ export class Gbl {
   public static gridWidth:number;
   public static gridHeight:number;
 
+  public static muted:boolean = false;
+
   private static _minX:number;
   private static _minY:number;
 
   private static _minDelay:number = 140;
   private static _delayStep:number = 20;
 
-  private static _maxTargets:number = 100;
+  private static _maxTargets:number = 120;
   private static _minTargetStep:number = 5;
   private static _maxTargetStep:number = 8;
 
@@ -45,7 +47,11 @@ export class Gbl {
     }
     if (Gbl.currentTargets < Gbl._maxTargets) {
       Gbl.currentTargets += Math.floor(Math.random() * (Gbl._maxTargetStep - Gbl._minTargetStep) + Gbl._minTargetStep);
+      if (Gbl.currentTargets > Gbl._maxTargets) {
+        Gbl.currentTargets = Gbl._maxTargets;
+      }
     }
-  }
+
+  } // nextLevel
 
 } // Gbl

@@ -34,23 +34,42 @@ export class GameState extends Phaser.State {
   private _movingSnakes:boolean = false;
 
   private _gameOver:boolean = false;
-
   private _levelComplete:boolean = false;
-
+  private _started:boolean = false;
   private _gameOverText:Phaser.Sprite;
   private _levelCompleteText:Phaser.Sprite;
 
+  private _hasMoved:boolean = false;
+
   private _nextColors:MatchColor[];
   private _nextSnake:Actor[];
+
+  private _moveSound:Phaser.Sound;
+  private _matchSound:Phaser.Sound;
+  private _hitSound:Phaser.Sound;
+
+  private _leftKey:Phaser.Key;
+  private _rightKey:Phaser.Key;
+  private _upKey:Phaser.Key;
+  private _downKey:Phaser.Key;
+  private _spaceKey:Phaser.Key;
+  private _mKey:Phaser.Key;
 
   public create ():void {
     this._handelingMatches = false;
     this._movingSnakes = false;
     this._gameOver = false;
     this._levelComplete = false;
+    this._hasMoved = false;
 
     this._nextColors = [];
     this._nextSnake = [];
+
+    this._moveSound = this.game.add.audio('move');
+    this._matchSound = this.game.add.audio('match');
+    this._hitSound = this.game.add.audio('hit');
+
+    this.game.sound.setDecodedCallback([this._moveSound, this._matchSound, this._hitSound], this._startGame, this);
 
     Gbl.init(this._gridWidth, this._gridHeight,
       new Phaser.Point(this.game.world.centerX, this.game.world.centerY));
@@ -109,21 +128,44 @@ export class GameState extends Phaser.State {
 
     this._createSnake();
     this._setNextColors();
+
+    this._leftKey = this.game.input.keyboard.addKey(Phaser.Keyboard.LEFT);
+    this._leftKey.onDown.add((key:Phaser.Key) => {
+      this._handleInput(key.keyCode);
+    });
+
+    this._rightKey = this.game.input.keyboard.addKey(Phaser.Keyboard.RIGHT);
+    this._rightKey.onDown.add((key:Phaser.Key) => {
+      this._handleInput(key.keyCode);
+    });
+
+    this._upKey = this.game.input.keyboard.addKey(Phaser.Keyboard.UP);
+    this._upKey.onDown.add((key:Phaser.Key) => {
+      this._handleInput(key.keyCode);
+    });
+
+    this._downKey = this.game.input.keyboard.addKey(Phaser.Keyboard.DOWN);
+    this._downKey.onDown.add((key:Phaser.Key) => {
+      this._handleInput(key.keyCode);
+    });
+
+    this._spaceKey = this.game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
+    this._spaceKey.onDown.add((key:Phaser.Key) => {
+      this._handleInput(key.keyCode);
+    });
+
+    this._mKey = this.game.input.keyboard.addKey(Phaser.Keyboard.M);
+    this._mKey.onDown.add((key:Phaser.Key) => {
+      this._handleInput(key.keyCode);
+    });
+
   } // create
 
   public update ():void {
-    if (this._gameOver) {
-      if (this.game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR)) {
-        this.state.start('menu');
-      }
-      return;
-    } else if (this._levelComplete) {
-      if (this.game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR)) {
-        Gbl.nextLevel();
-        this.state.start('game');
-      }
+    if (!this._started || this._gameOver || this._levelComplete) {
       return;
     }
+
     if (this._movingSnakes) {
       if (this._fallTimer < this._fallDelay) {
         this._fallTimer += this.game.time.elapsed;
@@ -136,15 +178,6 @@ export class GameState extends Phaser.State {
       return;
     }
 
-    if (this.game.input.keyboard.isDown(Phaser.Keyboard.LEFT)) {
-      this._newDirection.set(-1, 0);
-    } else if (this.game.input.keyboard.isDown(Phaser.Keyboard.RIGHT)) {
-      this._newDirection.set(1, 0);
-    } else if (this.game.input.keyboard.isDown(Phaser.Keyboard.UP)) {
-      this._newDirection.set(0, -1);
-    } else if (this.game.input.keyboard.isDown(Phaser.Keyboard.DOWN)) {
-      this._newDirection.set(0, 1);
-    }
     if (this._moveTimer < Gbl.currentDelay) {
       this._moveTimer += this.game.time.elapsed;
     } else {
@@ -160,6 +193,9 @@ export class GameState extends Phaser.State {
         !this._currentSnake.hit(nextPos.x, nextPos.y)) {
 
         this._currentSnake.updateSnake(this._newDirection);
+        if (!Gbl.muted) {
+          this._moveSound.play();
+        }
       } else {
         for (const part of this._currentSnake.body) {
           if (part.gridPosition.y < 0) {
@@ -167,6 +203,10 @@ export class GameState extends Phaser.State {
             this._gameOverText.visible = true;
           }
         }
+        if (!Gbl.muted) {
+          this._hitSound.play();
+        }
+        
         this._deadSnakes.push(this._currentSnake);
         this._currentSnake = null;
         this._handelingMatches = true;
@@ -177,9 +217,51 @@ export class GameState extends Phaser.State {
   } // update
 
   public render ():void {
-    this.game.debug.text(this.time.fps.toString() || '--', 2, 14, '#00ff00');
+    // this.game.debug.text(this.time.fps.toString() || '--', 2, 14, '#00ff00');
 
   } // render
+
+  private _startGame ():void {
+    this._started = true;
+  }
+
+  private _handleInput (key:Phaser.KeyCode):void {
+    if ((!this._started || this._gameOver || this._levelComplete) &&
+    (key !== Phaser.Keyboard.SPACEBAR && key !== Phaser.Keyboard.M)) {
+      return;
+    }
+
+    switch (key) {
+      case Phaser.Keyboard.LEFT:
+        this._newDirection.set(-1, 0);
+        break;
+
+      case Phaser.Keyboard.RIGHT:
+        this._newDirection.set(1, 0);
+        break;
+
+      case Phaser.Keyboard.UP:
+        this._newDirection.set(0, -1);
+        break;
+
+      case Phaser.Keyboard.DOWN:
+        this._newDirection.set(0, 1);
+        break;
+
+      case Phaser.Keyboard.SPACEBAR:
+        if (this._gameOver) {
+          this.state.start('menu');
+        } else if (this._levelComplete) {
+          Gbl.nextLevel();
+          this.state.start('game');
+        }
+        break;
+
+      case Phaser.Keyboard.M:
+        Gbl.muted = !Gbl.muted;
+        break;
+    }
+  }
 
   private _setNextColors ():void {
     this._nextColors = [];
@@ -290,6 +372,7 @@ export class GameState extends Phaser.State {
           this._grid[pos.y][pos.x] = MatchColor.NONE;
         }
         snake.moveDown();
+        this._hasMoved = true;
         foundSnakeToMove = true;
       }
       for (const part of body) {
@@ -299,7 +382,19 @@ export class GameState extends Phaser.State {
     }
 
     if (!foundSnakeToMove) {
+      if (this._hasMoved) {
+        if (!Gbl.muted) {
+          this._hitSound.play();
+        }
+        
+        this._hasMoved = false;
+      }
+      
       if (this._getMatches()) {
+        if (!Gbl.muted) {
+          this._matchSound.play();
+        }
+        
         this._moveSnakesDown();
       } else {
         this._handelingMatches = false;

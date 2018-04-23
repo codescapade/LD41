@@ -31,7 +31,7 @@ export class MenuState extends Phaser.State {
   private _startGame ():void {
     Gbl.currentLevel = 1;
     Gbl.currentDelay = 375;
-    Gbl.currentTargets = 8;
+    Gbl.currentTargets = 120;
     this.state.start('game');
 
   } // _startGame
