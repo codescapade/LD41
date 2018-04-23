@@ -1389,7 +1389,7 @@ var MenuState = function (_Phaser$State) {
         value: function _startGame() {
             gbl_1.Gbl.currentLevel = 1;
             gbl_1.Gbl.currentDelay = 375;
-            gbl_1.Gbl.currentTargets = 120;
+            gbl_1.Gbl.currentTargets = 8;
             this.state.start('game');
         } // _startGame
 
