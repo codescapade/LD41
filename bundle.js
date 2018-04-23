@@ -133,8 +133,12 @@ var Gbl = function () {
             }
             if (Gbl.currentTargets < Gbl._maxTargets) {
                 Gbl.currentTargets += Math.floor(Math.random() * (Gbl._maxTargetStep - Gbl._minTargetStep) + Gbl._minTargetStep);
+                if (Gbl.currentTargets > Gbl._maxTargets) {
+                    Gbl.currentTargets = Gbl._maxTargets;
+                }
             }
-        }
+        } // nextLevel
+
     }]);
 
     return Gbl;
@@ -145,9 +149,10 @@ Gbl.TILESIZE = 24;
 Gbl.currentLevel = 1;
 Gbl.currentDelay = 380;
 Gbl.currentTargets = 8;
+Gbl.muted = false;
 Gbl._minDelay = 140;
 Gbl._delayStep = 20;
-Gbl._maxTargets = 100;
+Gbl._maxTargets = 120;
 Gbl._minTargetStep = 5;
 Gbl._maxTargetStep = 8;
 exports.Gbl = Gbl;
@@ -525,18 +530,27 @@ var GameState = function (_Phaser$State) {
         _this._movingSnakes = false;
         _this._gameOver = false;
         _this._levelComplete = false;
+        _this._started = false;
+        _this._hasMoved = false;
         return _this;
     }
 
     _createClass(GameState, [{
         key: "create",
         value: function create() {
+            var _this2 = this;
+
             this._handelingMatches = false;
             this._movingSnakes = false;
             this._gameOver = false;
             this._levelComplete = false;
+            this._hasMoved = false;
             this._nextColors = [];
             this._nextSnake = [];
+            this._moveSound = this.game.add.audio('move');
+            this._matchSound = this.game.add.audio('match');
+            this._hitSound = this.game.add.audio('hit');
+            this.game.sound.setDecodedCallback([this._moveSound, this._matchSound, this._hitSound], this._startGame, this);
             gbl_1.Gbl.init(this._gridWidth, this._gridHeight, new Phaser.Point(this.game.world.centerX, this.game.world.centerY));
             var background = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, 'grid');
             background.anchor.set(0.5);
@@ -574,21 +588,36 @@ var GameState = function (_Phaser$State) {
             this._setNextColors();
             this._createSnake();
             this._setNextColors();
+            this._leftKey = this.game.input.keyboard.addKey(Phaser.Keyboard.LEFT);
+            this._leftKey.onDown.add(function (key) {
+                _this2._handleInput(key.keyCode);
+            });
+            this._rightKey = this.game.input.keyboard.addKey(Phaser.Keyboard.RIGHT);
+            this._rightKey.onDown.add(function (key) {
+                _this2._handleInput(key.keyCode);
+            });
+            this._upKey = this.game.input.keyboard.addKey(Phaser.Keyboard.UP);
+            this._upKey.onDown.add(function (key) {
+                _this2._handleInput(key.keyCode);
+            });
+            this._downKey = this.game.input.keyboard.addKey(Phaser.Keyboard.DOWN);
+            this._downKey.onDown.add(function (key) {
+                _this2._handleInput(key.keyCode);
+            });
+            this._spaceKey = this.game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
+            this._spaceKey.onDown.add(function (key) {
+                _this2._handleInput(key.keyCode);
+            });
+            this._mKey = this.game.input.keyboard.addKey(Phaser.Keyboard.M);
+            this._mKey.onDown.add(function (key) {
+                _this2._handleInput(key.keyCode);
+            });
         } // create
 
     }, {
         key: "update",
         value: function update() {
-            if (this._gameOver) {
-                if (this.game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR)) {
-                    this.state.start('menu');
-                }
-                return;
-            } else if (this._levelComplete) {
-                if (this.game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR)) {
-                    gbl_1.Gbl.nextLevel();
-                    this.state.start('game');
-                }
+            if (!this._started || this._gameOver || this._levelComplete) {
                 return;
             }
             if (this._movingSnakes) {
@@ -602,15 +631,6 @@ var GameState = function (_Phaser$State) {
             if (this._handelingMatches) {
                 return;
             }
-            if (this.game.input.keyboard.isDown(Phaser.Keyboard.LEFT)) {
-                this._newDirection.set(-1, 0);
-            } else if (this.game.input.keyboard.isDown(Phaser.Keyboard.RIGHT)) {
-                this._newDirection.set(1, 0);
-            } else if (this.game.input.keyboard.isDown(Phaser.Keyboard.UP)) {
-                this._newDirection.set(0, -1);
-            } else if (this.game.input.keyboard.isDown(Phaser.Keyboard.DOWN)) {
-                this._newDirection.set(0, 1);
-            }
             if (this._moveTimer < gbl_1.Gbl.currentDelay) {
                 this._moveTimer += this.game.time.elapsed;
             } else {
@@ -623,6 +643,9 @@ var GameState = function (_Phaser$State) {
                 }
                 if (!this._hitBounds(nextPos.x, nextPos.y) && this._positionFree(nextPos.x, nextPos.y) && !this._currentSnake.hit(nextPos.x, nextPos.y)) {
                     this._currentSnake.updateSnake(this._newDirection);
+                    if (!gbl_1.Gbl.muted) {
+                        this._moveSound.play();
+                    }
                 } else {
                     var _iteratorNormalCompletion = true;
                     var _didIteratorError = false;
@@ -652,6 +675,9 @@ var GameState = function (_Phaser$State) {
                         }
                     }
 
+                    if (!gbl_1.Gbl.muted) {
+                        this._hitSound.play();
+                    }
                     this._deadSnakes.push(this._currentSnake);
                     this._currentSnake = null;
                     this._handelingMatches = true;
@@ -663,10 +689,47 @@ var GameState = function (_Phaser$State) {
 
     }, {
         key: "render",
-        value: function render() {
-            this.game.debug.text(this.time.fps.toString() || '--', 2, 14, '#00ff00');
-        } // render
+        value: function render() {}
+        // this.game.debug.text(this.time.fps.toString() || '--', 2, 14, '#00ff00');
+        // render
 
+    }, {
+        key: "_startGame",
+        value: function _startGame() {
+            this._started = true;
+        }
+    }, {
+        key: "_handleInput",
+        value: function _handleInput(key) {
+            if ((!this._started || this._gameOver || this._levelComplete) && key !== Phaser.Keyboard.SPACEBAR && key !== Phaser.Keyboard.M) {
+                return;
+            }
+            switch (key) {
+                case Phaser.Keyboard.LEFT:
+                    this._newDirection.set(-1, 0);
+                    break;
+                case Phaser.Keyboard.RIGHT:
+                    this._newDirection.set(1, 0);
+                    break;
+                case Phaser.Keyboard.UP:
+                    this._newDirection.set(0, -1);
+                    break;
+                case Phaser.Keyboard.DOWN:
+                    this._newDirection.set(0, 1);
+                    break;
+                case Phaser.Keyboard.SPACEBAR:
+                    if (this._gameOver) {
+                        this.state.start('menu');
+                    } else if (this._levelComplete) {
+                        gbl_1.Gbl.nextLevel();
+                        this.state.start('game');
+                    }
+                    break;
+                case Phaser.Keyboard.M:
+                    gbl_1.Gbl.muted = !gbl_1.Gbl.muted;
+                    break;
+            }
+        }
     }, {
         key: "_setNextColors",
         value: function _setNextColors() {
@@ -875,6 +938,7 @@ var GameState = function (_Phaser$State) {
                         }
 
                         snake.moveDown();
+                        this._hasMoved = true;
                         foundSnakeToMove = true;
                     }
                     var _iteratorNormalCompletion7 = true;
@@ -919,7 +983,16 @@ var GameState = function (_Phaser$State) {
             }
 
             if (!foundSnakeToMove) {
+                if (this._hasMoved) {
+                    if (!gbl_1.Gbl.muted) {
+                        this._hitSound.play();
+                    }
+                    this._hasMoved = false;
+                }
                 if (this._getMatches()) {
+                    if (!gbl_1.Gbl.muted) {
+                        this._matchSound.play();
+                    }
                     this._moveSnakesDown();
                 } else {
                     this._handelingMatches = false;
@@ -1316,7 +1389,7 @@ var MenuState = function (_Phaser$State) {
         value: function _startGame() {
             gbl_1.Gbl.currentLevel = 1;
             gbl_1.Gbl.currentDelay = 375;
-            gbl_1.Gbl.currentTargets = 8;
+            gbl_1.Gbl.currentTargets = 120;
             this.state.start('game');
         } // _startGame
 
@@ -1356,6 +1429,9 @@ var PreloadState = function (_Phaser$State) {
             this.load.image('grid', 'assets/images/grid.png');
             this.load.image('border', 'assets/images/border.png');
             this.load.atlasJSONArray('sprites', 'assets/images/sprites.png', 'assets/images/sprites.json');
+            this.load.audio('move', 'assets/sounds/move.mp3');
+            this.load.audio('match', 'assets/sounds/match.mp3');
+            this.load.audio('hit', 'assets/sounds/hit.mp3');
         } // preload
 
     }, {
