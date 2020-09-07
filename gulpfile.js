@@ -61,8 +61,8 @@ gulp.task('copy-assets', function () {
       .pipe(gulp.dest('dist/assets'));
 });
 
-gulp.task('copy', ['copy-html', 'copy-libs', 'copy-assets']);
-gulp.task('watch', ['copy-html', 'copy-libs', 'copy-assets'], bundle);
+gulp.task('copy', gulp.series('copy-html', 'copy-libs', 'copy-assets'));
+gulp.task('watch', gulp.series('copy-html', 'copy-libs', 'copy-assets'), bundle);
 watchedBrowserify.on('update', bundle);
 watchedBrowserify.on('log', gutil.log);
 watchedBrowserify.on('error', gutil.log);
